@@ -41,7 +41,7 @@ KCPD/
 
 1. Place your raw data in the `data/` directory.
 2. Create and edit Jupyter Notebooks in the `dataAnalysis/` directory.
-3. Run dashboard from the the `models/` directory.
+3. Run dashboard from the the `dashboard/` directory.
 
 ## Autor
 
