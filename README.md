@@ -1,5 +1,7 @@
 # KCPD
 
+ ![Banner](./img/banner.png)  
+
 ## Overview
 
 **KCPD Crime Data**  is a project for analyzing and forecasting crime time series data (from City of Kansas) using Python. The project utilizes Jupyter Notebooks for data analysis, Python scripts for data processing and modeling.
