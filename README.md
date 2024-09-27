@@ -4,7 +4,7 @@
 
 **KCPD Crime Data**  is a project for analyzing and forecasting crime time series data (from City of Kansas) using Python. The project utilizes Jupyter Notebooks for data analysis, Python scripts for data processing and modeling.
 
-## Projektstruktur
+## Project structure
 
 ```
 KCPD/
@@ -37,12 +37,12 @@ KCPD/
    cd KCPD
    ```
 
-## Nutzung
+## Usage
 
 1. Place your raw data in the `data/` directory.
 2. Create and edit Jupyter Notebooks in the `dataAnalysis/` directory.
 3. Run dashboard from the the `dashboard/` directory.
 
-## Autor
+## Autors
 
 Sangeeths Chandrakumar, Leandro Gregorini and Florian Klessascheck
