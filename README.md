@@ -1,6 +1,6 @@
 # KCPD
 
- ![Banner](./img/banner.png)(https://data.kcmo.org/)
+[![Banner](./img/banner.png)](https://data.kcmo.org/)
 
 ## Overview
 
