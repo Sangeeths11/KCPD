@@ -8,20 +8,32 @@ from shapely import wkt
 
 @st.cache_data
 def load_district_data():
-    district_df = pd.read_csv("../data/city_council_districts/City_Council_Districts_Shapefile_-_Effective_2023_20241004.csv")
+    district_df = pd.read_csv("../data/city_council_districts/City_Council_Districts_Shapefile_-_Effective_2023_20241004.csv", low_memory=False)
     return district_df
 
 @st.cache_data
-def load_crime_data():
-    crime_df = pd.read_csv("../data/mergedData/merged_df.csv")
+def load_crime_data(start_date=None, end_date=None):
+    crime_df = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Location", "Offense", "Description", "Address", "Reported_Date"], low_memory=False)
+    # Convert the Reported_Date column to datetime format
+    crime_df['Reported_Date'] = pd.to_datetime(crime_df['Reported_Date'], format='%m/%d/%Y')
+
+    # Filter the DataFrame based on the provided date range
+    if start_date is not None and end_date is not None:
+        start_date = pd.to_datetime(start_date, format='%m/%d/%Y')
+        end_date = pd.to_datetime(end_date, format='%m/%d/%Y')
+        crime_df = crime_df[(crime_df['Reported_Date'] >= start_date) & (crime_df['Reported_Date'] <= end_date)]
+    
     return crime_df
 
 # Set Streamlit page layout
 st.set_page_config(page_title="KCPD", page_icon="🌍", layout="wide")
 
+start_date = st.date_input("Start date", value=pd.to_datetime("01/01/2024"))
+end_date = st.date_input("End date", value=pd.to_datetime("01/31/2024"))
+
 # Load the data
 district_df = load_district_data()
-crime_df = load_crime_data()
+crime_df = load_crime_data(start_date=start_date, end_date=end_date)
 
 # Convert district data to GeoDataFrame
 gdf = gpd.GeoDataFrame(district_df, geometry=gpd.GeoSeries.from_wkt(district_df["the_geom"]))  # Create a GeoDataFrame
