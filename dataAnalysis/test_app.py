@@ -12,7 +12,7 @@ def load_district_data():
 
 @st.cache_data
 def load_crime_data():
-    district_df = pd.read_csv("../dataPreperation/merged_data.csv")
+    district_df = pd.read_csv("../data/mergedData/merged_df.csv")
     return district_df
 
 # Set Streamlit page layout
