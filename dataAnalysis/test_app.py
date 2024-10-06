@@ -3,7 +3,7 @@ import geopandas as gpd
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import MousePosition
+from folium.plugins import MousePosition, MarkerCluster
 from shapely import wkt
 
 @st.cache_data
@@ -12,31 +12,43 @@ def load_district_data():
     return district_df
 
 @st.cache_data
-def load_crime_data(start_date=None, end_date=None):
+def load_offenses():
+    offenses = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Offense"], low_memory=False)
+    offenses = offenses["Offense"].unique()
+    return offenses
+
+@st.cache_data
+def load_crime_data(start_date=None, end_date=None, offense=None):
     crime_df = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Location", "Offense", "Description", "Address", "Reported_Date"], low_memory=False)
     # Convert the Reported_Date column to datetime format
     crime_df['Reported_Date'] = pd.to_datetime(crime_df['Reported_Date'], format='%m/%d/%Y')
 
     # Filter the DataFrame based on the provided date range
-    if start_date is not None and end_date is not None:
+    if start_date is not None and end_date is not None and offense is not None:
         start_date = pd.to_datetime(start_date, format='%m/%d/%Y')
         end_date = pd.to_datetime(end_date, format='%m/%d/%Y')
         crime_df = crime_df[(crime_df['Reported_Date'] >= start_date) & (crime_df['Reported_Date'] <= end_date)]
+        crime_df = crime_df[(crime_df['Offense'] == offense)]
     
     return crime_df
 
 # Set Streamlit page layout
 st.set_page_config(page_title="KCPD", page_icon="🌍", layout="wide")
 
-start_date = st.date_input("Start date", value=pd.to_datetime("01/01/2024"))
-end_date = st.date_input("End date", value=pd.to_datetime("01/31/2024"))
+offenses = load_offenses()  # load offenses for selection
+
+start_date = st.sidebar.date_input("Start date", value=pd.to_datetime("01/01/2024"))
+end_date = st.sidebar.date_input("End date", value=pd.to_datetime("01/31/2024"))
+
+offense = st.sidebar.selectbox("Select offense", options=offenses, index=0)
 
 # Load the data
 district_df = load_district_data()
-crime_df = load_crime_data(start_date=start_date, end_date=end_date)
+crime_df = load_crime_data(start_date=start_date, end_date=end_date, offense=offense)
 
 # Convert district data to GeoDataFrame
 gdf = gpd.GeoDataFrame(district_df, geometry=gpd.GeoSeries.from_wkt(district_df["the_geom"]))  # Create a GeoDataFrame
+gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.001)  # Simplify the district polygons
 gdf.set_crs(epsg=4326, inplace=True)  # Set the correct Coordinate Reference System (CRS)
 
 # Create a map centered around the area
@@ -63,12 +75,15 @@ crime_df['geometry'] = crime_df['Location'].apply(wkt.loads)  # Convert POINT da
 crime_gdf = gpd.GeoDataFrame(crime_df, geometry='geometry')  # Create GeoDataFrame for crime data
 crime_gdf.set_crs(epsg=4326, inplace=True)  # Ensure the CRS matches the map
 
+# Create a MarkerCluster instance
+marker_cluster = MarkerCluster().add_to(m)
+
 # Add crime markers
 for idx, crime in crime_gdf.iterrows():
     lat = crime.geometry.y
     lon = crime.geometry.x
-    description = f"{crime['Offense']} - {crime['Description']} at {crime['Address']}"
-    folium.Marker([lat, lon], popup=description, icon=folium.Icon(color="red", icon="info-sign")).add_to(m)
+    description = f"<div style='width: 300px;'><b>{crime['Offense']}</b> - {crime['Description']} at {crime['Address']}</div>"
+    folium.Marker([lat, lon], popup=folium.Popup(description), icon=folium.Icon(color="red", icon="info-sign")).add_to(marker_cluster)
 
 # Add Mouse Position Plugin to display coordinates on hover
 mouse_position = MousePosition(
