@@ -20,10 +20,8 @@ def load_offenses():
 @st.cache_data
 def load_crime_data(start_date=None, end_date=None, offense=None):
     crime_df = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Location", "Offense", "Description", "Address", "Reported_Date"], low_memory=False)
-    # Convert the Reported_Date column to datetime format
     crime_df['Reported_Date'] = pd.to_datetime(crime_df['Reported_Date'], format='%m/%d/%Y')
 
-    # Filter the DataFrame based on the provided date range
     if start_date is not None and end_date is not None and offense is not None:
         start_date = pd.to_datetime(start_date, format='%m/%d/%Y')
         end_date = pd.to_datetime(end_date, format='%m/%d/%Y')
@@ -32,70 +30,58 @@ def load_crime_data(start_date=None, end_date=None, offense=None):
     
     return crime_df
 
-# Set Streamlit page layout
 st.set_page_config(page_title="KCPD", page_icon="🌍", layout="wide")
 
-offenses = load_offenses()  # load offenses for selection
+offenses = load_offenses()
 
 start_date = st.sidebar.date_input("Start date", value=pd.to_datetime("01/01/2024"))
 end_date = st.sidebar.date_input("End date", value=pd.to_datetime("01/31/2024"))
 
 offense = st.sidebar.selectbox("Select offense", options=offenses, index=0)
 
-# Load the data
 district_df = load_district_data()
 crime_df = load_crime_data(start_date=start_date, end_date=end_date, offense=offense)
 
-# Convert district data to GeoDataFrame
-gdf = gpd.GeoDataFrame(district_df, geometry=gpd.GeoSeries.from_wkt(district_df["the_geom"]))  # Create a GeoDataFrame
-gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.001)  # Simplify the district polygons
-gdf.set_crs(epsg=4326, inplace=True)  # Set the correct Coordinate Reference System (CRS)
+gdf = gpd.GeoDataFrame(district_df, geometry=gpd.GeoSeries.from_wkt(district_df["the_geom"]))
+gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.001)
+gdf.set_crs(epsg=4326, inplace=True)
 
-# Create a map centered around the area
 m = folium.Map(location=[39.075, -94.53], zoom_start=10)
 
-# List of colors for districts
 colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF']
 
-# Add district polygons to the map
 for i, row in gdf.iterrows():
     folium.GeoJson(row["geometry"],
                    name=row["DISTRICT_2"],
-                   style_function=lambda x,
-                   color=colors[i % len(colors)]: {
-                       'fillColor': color,  # Set the fill color for the district
-                       'color': 'grey',  # Border color
+                   style_function=lambda x, color=colors[i % len(colors)]: {
+                       'fillColor': color,
+                       'color': 'grey',
                        'weight': 2,
-                       'fillOpacity': 0.25  # Transparency level
+                       'fillOpacity': 0.25
                    }
                    ).add_to(m)
 
-# Extract crime coordinates and add markers to the map
-crime_df['geometry'] = crime_df['Location'].apply(wkt.loads)  # Convert POINT data to Shapely geometry
-crime_gdf = gpd.GeoDataFrame(crime_df, geometry='geometry')  # Create GeoDataFrame for crime data
-crime_gdf.set_crs(epsg=4326, inplace=True)  # Ensure the CRS matches the map
+crime_df['geometry'] = crime_df['Location'].apply(wkt.loads)
+crime_gdf = gpd.GeoDataFrame(crime_df, geometry='geometry')
+crime_gdf.set_crs(epsg=4326, inplace=True)
 
-# Create a MarkerCluster instance
 marker_cluster = MarkerCluster().add_to(m)
 
-# Add crime markers
 for idx, crime in crime_gdf.iterrows():
     lat = crime.geometry.y
     lon = crime.geometry.x
     description = f"<div style='width: 300px;'><b>{crime['Offense']}</b> - {crime['Description']} at {crime['Address']}</div>"
     folium.Marker([lat, lon], popup=folium.Popup(description), icon=folium.Icon(color="red", icon="info-sign")).add_to(marker_cluster)
 
-# Add Mouse Position Plugin to display coordinates on hover
 mouse_position = MousePosition(
-    position="topright",  # Position of the coordinates display on the map
+    position="topright",
     separator=" | Long: ",
     prefix="Lat: ",
-    num_digits=5,  # Number of decimal places for the coordinates
+    num_digits=5,
 )
 m.add_child(mouse_position)
 
-# Render the map in Streamlit
-col1, col2, col3 = st.columns([1, 3, 1])  # Adjust ratios for centering
+col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
     st.title("KCPD - Time Series Data")
     st.subheader("District Map with Crime Data")
