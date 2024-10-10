@@ -13,20 +13,20 @@ def load_district_data():
 
 @st.cache_data
 def load_offenses():
-    offenses = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Offense"], low_memory=False)
-    offenses = offenses["Offense"].unique()
+    offenses = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Offense_Description"], low_memory=False)
+    offenses = offenses["Offense_Description"].unique()
     return offenses
 
 @st.cache_data
 def load_crime_data(start_date=None, end_date=None, offense=None):
-    crime_df = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Location", "Offense", "Description", "Address", "Reported_Date"], low_memory=False)
+    crime_df = pd.read_csv("../data/mergedData/merged_df.csv", usecols=["Location", "Offense_Description", "Address", "Reported_Date", "dist_id"], low_memory=False)
     crime_df['Reported_Date'] = pd.to_datetime(crime_df['Reported_Date'], format='%m/%d/%Y')
 
     if start_date is not None and end_date is not None and offense is not None:
         start_date = pd.to_datetime(start_date, format='%m/%d/%Y')
         end_date = pd.to_datetime(end_date, format='%m/%d/%Y')
         crime_df = crime_df[(crime_df['Reported_Date'] >= start_date) & (crime_df['Reported_Date'] <= end_date)]
-        crime_df = crime_df[(crime_df['Offense'] == offense)]
+        crime_df = crime_df[(crime_df["Offense_Description"] == offense)]
     
     return crime_df
 
@@ -70,7 +70,7 @@ marker_cluster = MarkerCluster().add_to(m)
 for idx, crime in crime_gdf.iterrows():
     lat = crime.geometry.y
     lon = crime.geometry.x
-    description = f"<div style='width: 300px;'><b>{crime['Offense']}</b> - {crime['Description']} at {crime['Address']}</div>"
+    description = f"<div style='width: 300px;'><b>{crime["Offense_Description"]}</b> at {crime['Address']} in district {crime['dist_id']}</div>"
     folium.Marker([lat, lon], popup=folium.Popup(description), icon=folium.Icon(color="red", icon="info-sign")).add_to(marker_cluster)
 
 mouse_position = MousePosition(
