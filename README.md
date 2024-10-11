@@ -14,7 +14,7 @@ KCPD/
 ├── dashboard/
 ├── data/
 ├── dataAnalysis/
-├── dataPreperation/
+├── dataPreparation/
 ├── img/
 ├── requirements.txt
 ├── .gitignore
