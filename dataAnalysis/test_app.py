@@ -74,7 +74,7 @@ else:
     for idx, crime in crime_gdf.iterrows():
         lat = crime.geometry.y
         lon = crime.geometry.x
-        description = f"<div style='width: 300px;'><b>{crime["Offense_Description"]}</b> at {crime['Address']} in district {crime['dist_id']}</div>"
+        description = f"<div style='width: 300px;'><b>{crime['Offense_Description']}</b> at {crime['Address']} in district {crime['dist_id']}</div>"
         folium.Marker([lat, lon], popup=folium.Popup(description), icon=folium.Icon(color="red", icon="info-sign")).add_to(m)
 
     mouse_position = MousePosition(
