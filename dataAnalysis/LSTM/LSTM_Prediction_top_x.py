@@ -183,7 +183,7 @@ for dist_id in tqdm.tqdm(districts, desc="LSTM Training and Prediction", leave=F
         })
 
         # Create plot directory
-        plot_directory = os.path.join("lstm_plots", str(dist_id), crime)
+        plot_directory = os.path.join("dataAnalysis/LSTM/lstm_plots", str(dist_id), crime)
         os.makedirs(plot_directory, exist_ok=True)
 
         # Plot forecast
