@@ -8,7 +8,8 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Input, Bidirectional, Dropout
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import Huber
+from tensorflow.keras.losses import Loss
+import tensorflow.keras.backend as K
 
 import tqdm
 import logging
@@ -72,7 +73,27 @@ def plot_rmse_heatmap(crime_dist_dict):
 rmse_dict = {}
 time_steps = 12
 
-def build_improved_lstm_model(time_steps, learning_rate=0.001):
+class WeightedHuberLoss(Loss):
+    """Custom Huber Loss to penalize peaks more."""
+    def __init__(self, delta=1.0, peak_weight=5.0):
+        super(WeightedHuberLoss, self).__init__()
+        self.delta = delta
+        self.peak_weight = peak_weight
+
+    def call(self, y_true, y_pred):
+        error = y_true - y_pred
+        abs_error = K.abs(error)
+        quadratic = K.minimum(abs_error, self.delta)
+        linear = abs_error - quadratic
+        loss = 0.5 * quadratic**2 + self.delta * linear
+
+        # Apply higher weight for peaks
+        peak_mask = K.cast(K.greater(y_true, K.mean(y_true) + 2 * K.std(y_true)), K.floatx())
+        loss = loss + peak_mask * self.peak_weight * loss
+
+        return K.mean(loss)
+
+def build_improved_lstm_model_with_custom_loss(time_steps, learning_rate=0.001):
     model = Sequential([
         Input(shape=(time_steps, 1)),
         Bidirectional(LSTM(64, return_sequences=True)),
@@ -82,13 +103,12 @@ def build_improved_lstm_model(time_steps, learning_rate=0.001):
         Dense(32, activation='relu'),
         Dense(1)
     ])
-    model.compile(optimizer=Adam(learning_rate=learning_rate), loss=Huber(delta=1.0))
+    custom_loss = WeightedHuberLoss(delta=1.0, peak_weight=5.0)
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss=custom_loss)
     return model
 
-rmse_dict = {}
-time_steps = 12
-
-for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Prediction", leave=False):
+# Training und Prediction Loop
+for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Prediction with Weighted Loss", leave=False):
     crimes = os.listdir(os.path.join(basepath, str(dist_id)))
     rmse_dict[str(dist_id)] = {}
     for crime in crimes:
@@ -105,7 +125,7 @@ for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Predictio
         X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
         X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
         
-        model = build_improved_lstm_model(time_steps=time_steps, learning_rate=0.001)
+        model = build_improved_lstm_model_with_custom_loss(time_steps=time_steps, learning_rate=0.001)
 
         model.fit(X_train, y_train, epochs=50, batch_size=16, verbose=0)
         
@@ -113,16 +133,21 @@ for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Predictio
         y_pred_inv = scaler.inverse_transform(y_pred)
         y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1))
         y_pred_inv = np.maximum(y_pred_inv, 0)
-        rmse = np.sqrt(mean_squared_error(y_test_inv, y_pred_inv))
+        min_length = min(len(y_test_inv), len(y_pred_inv))
+        y_test_trimmed = y_test_inv[:min_length]
+        y_pred_trimmed = y_pred_inv[:min_length]
+        rmse = np.sqrt(mean_squared_error(y_test_trimmed, y_pred_trimmed))
         rmse_dict[str(dist_id)][crime]["rmse"] = rmse
-        min_length = min(len(test_df['Reported_Date'].iloc[time_steps:]), len(y_pred_inv))
+        min_length = min(len(test_df['Reported_Date'].iloc[time_steps:]), len(y_pred_trimmed))
+
         forecast_df = pd.DataFrame({
             'ds': test_df['Reported_Date'].iloc[time_steps:time_steps + min_length].reset_index(drop=True),
-            'yhat': y_pred_inv.flatten()[:min_length]
+            'yhat': y_pred_trimmed.flatten()[:min_length]
         })
+
         test_plot_df = pd.DataFrame({
             'ds': test_df['Reported_Date'].iloc[time_steps:time_steps + min_length].reset_index(drop=True),
-            'y': y_test_inv.flatten()[:min_length]
+            'y': y_test_trimmed.flatten()[:min_length]
         })
         plot_directory = os.path.join("dataAnalysis/LSTM/lstm_plots", str(dist_id), crime)
         os.makedirs(plot_directory, exist_ok=True)
