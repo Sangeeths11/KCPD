@@ -127,7 +127,7 @@ for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Predictio
         
         model = build_improved_lstm_model_with_custom_loss(time_steps=time_steps, learning_rate=0.001)
 
-        model.fit(X_train, y_train, epochs=50, batch_size=16, verbose=0)
+        model.fit(X_train, y_train, epochs=100, batch_size=16, verbose=0)
         
         y_pred = model.predict(X_test)
         y_pred_inv = scaler.inverse_transform(y_pred)
