@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense, Input, Bidirectional, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Loss
@@ -50,7 +50,7 @@ def preprocess_data(data, time_steps=1):
     X, y = create_sequences(scaled_data, time_steps)
     return X, y, scaler
 
-def plot_rmse_heatmap(crime_dist_dict):
+def plot_rmse_heatmap(crime_dist_dict, save_path="rmse_heatmap.png"):
     rmse_data = []
     for dist_id, crimes in crime_dist_dict.items():
         for crime_name, crime_info in crimes.items():
@@ -68,7 +68,8 @@ def plot_rmse_heatmap(crime_dist_dict):
     plt.xlabel("District")
     plt.ylabel("Crime Category")
     plt.tight_layout()
-    plt.show()
+    plt.savefig(save_path)  # Save the heatmap
+    plt.close()
 
 rmse_dict = {}
 time_steps = 12
@@ -95,19 +96,18 @@ class WeightedHuberLoss(Loss):
 
 def build_improved_lstm_model_with_custom_loss(time_steps, learning_rate=0.001):
     model = Sequential([
-        Input(shape=(time_steps, 1)),
-        Bidirectional(LSTM(64, return_sequences=True)),
-        Dropout(0.2),
-        Bidirectional(LSTM(64)),
-        Dropout(0.2),
-        Dense(32, activation='relu'),
-        Dense(1)
+        Input(shape=(time_steps, 1), name='input_layer'),
+        Bidirectional(LSTM(64, return_sequences=True, name='bi_lstm_1')),
+        Dropout(0.2, name='dropout_1'),
+        Bidirectional(LSTM(64, name='bi_lstm_2')),
+        Dropout(0.2, name='dropout_2'),
+        Dense(32, activation='relu', name='dense_1'),
+        Dense(1, name='output_layer')
     ])
     custom_loss = WeightedHuberLoss(delta=1.0, peak_weight=5.0)
     model.compile(optimizer=Adam(learning_rate=learning_rate), loss=custom_loss)
     return model
 
-# Training und Prediction Loop
 for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Prediction with Weighted Loss", leave=False):
     crimes = os.listdir(os.path.join(basepath, str(dist_id)))
     rmse_dict[str(dist_id)] = {}
@@ -128,6 +128,19 @@ for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Predictio
         model = build_improved_lstm_model_with_custom_loss(time_steps=time_steps, learning_rate=0.001)
 
         model.fit(X_train, y_train, epochs=100, batch_size=16, verbose=0)
+        
+        model_save_path = os.path.join("models", dist_id, crime)
+        os.makedirs(model_save_path, exist_ok=True)
+
+        # Speichern im empfohlenen .keras-Format
+        saved_model_path = os.path.join(model_save_path, "saved_model.keras")
+
+        # Datei löschen, falls sie existiert
+        if os.path.exists(saved_model_path):
+            os.remove(saved_model_path)
+
+        # Modell speichern
+        model.save(saved_model_path)
         
         y_pred = model.predict(X_test)
         y_pred_inv = scaler.inverse_transform(y_pred)
@@ -161,4 +174,4 @@ for dist_id in tqdm.tqdm(os.listdir(basepath), desc="LSTM Training and Predictio
             plot_train_aswell=False
         )
 
-plot_rmse_heatmap(rmse_dict)
+plot_rmse_heatmap(rmse_dict, save_path="dataAnalysis/LSTM/rmse_heatmap.png")
