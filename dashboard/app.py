@@ -52,6 +52,16 @@ class WeightedHuberLoss(Loss):
 
 st.set_page_config(page_title="KCPD", page_icon="🌍", layout="wide")
 
+# Inject custom CSS for spinner or other elements
+st.markdown("""
+    <style>
+        .st-emotion-cache-ocqkz7.e1f1d6gn5 {
+            height: auto !important;
+            min-height: 50px !important; /* Set a minimum height */
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 ROUND_PREDICTIONS = st.sidebar.selectbox("Round predictions:", [True, False], 1)
 if st.sidebar.button("Rerun.."):
     st.session_state["selected_district"] = ""
@@ -114,33 +124,40 @@ def lstm_predictions(dist_id, offense, n_periods):
             custom_objects={'WeightedHuberLoss': WeightedHuberLoss}
         )
 
-        # Prepare to store predictions
-        predictions = []
-
-        time_steps=12
+        # Time step size
+        time_steps = 12
 
         # Preprocessing
         train_df = load_crime_data(dist_id=dist_id, offense=offense, subset="train")
-        test_df = load_crime_data(dist_id=dist_id, offense=offense, subset="test")
         train_df['Reported_Date'] = pd.to_datetime(train_df['Reported_Date'])
-        test_df['Reported_Date'] = pd.to_datetime(test_df['Reported_Date'])
-        test_df = test_df[:n_periods]
-        full_df = pd.concat([train_df, test_df], ignore_index=True).sort_values('Reported_Date').reset_index(drop=True)
-        data_series = full_df['Crime_Count'].values
-        X_train, y_train, scaler = preprocess_data(data_series[:len(train_df)], time_steps)
-        X_test, y_test, _ = preprocess_data(data_series[len(train_df) - time_steps:], time_steps)
-        X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
-        y_pred = model.predict(X_test)
-        y_pred_inv = scaler.inverse_transform(y_pred)
-        y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1))
-        y_pred_inv = np.maximum(y_pred_inv, 0)
-        min_length = min(len(y_test_inv), len(y_pred_inv))
-        y_pred_trimmed = y_pred_inv[:min_length]
-        min_length = min(len(test_df['Reported_Date'].iloc[time_steps:]), len(y_pred_trimmed))
-        predictions = y_pred_inv.flatten()[:min_length]
-        
-        if ROUND_PREDICTIONS:
-            predictions = predictions.round()
+        train_df = train_df.sort_values('Reported_Date').reset_index(drop=True)
+
+        # Prepare the training data
+        data_series = train_df['Crime_Count'].values
+        X_train, y_train, scaler = preprocess_data(data_series, time_steps)
+
+        # Start with the last `time_steps` from the training set
+        input_sequence = data_series[-time_steps:].reshape(1, time_steps, 1)
+
+        # Store predictions
+        predictions = []
+
+        for _ in range(n_periods):
+            # Predict the next value
+            y_pred = model.predict(input_sequence)
+            y_pred_inv = scaler.inverse_transform(y_pred)
+
+            # Ensure non-negative predictions
+            y_pred_inv = np.maximum(y_pred_inv, 0)
+            next_value = y_pred_inv.flatten()[0]
+
+            if ROUND_PREDICTIONS:
+                next_value = round(next_value)
+
+            predictions.append(next_value)
+
+            # Update the input sequence for the next prediction
+            input_sequence = np.append(input_sequence[:, 1:, :], [[[next_value]]], axis=1)
 
         return predictions
 
@@ -172,7 +189,7 @@ def display_predictions(dist_id, offense, date_range, n_periods, predictions):
     ax.plot(test_df['Reported_Date'], test_df['Crime_Count'], label="Test Data", color='orange')
 
     # Title and labels
-    ax.set_title(f"ARIMA Predictions vs Test Data for {offense} in District {dist_id}")
+    ax.set_title(f"Predictions vs Test Data for {offense} in District {dist_id}")
     ax.set_xlabel("Date")
     ax.set_ylabel("Crime Count")
     
@@ -287,17 +304,20 @@ with subcol2:
 
 st.markdown("---")
 
-if offense and model and date_range and district:
-    st.subheader("Run the prediction:")
-    dist_id = f"{district[0]}.0"
-    if st.button("Run prediction..", use_container_width=True):
-        if model == "ARIMA":
-            n_periods = (date_range[1] - date_range[0]).days
-            predictions = arima_predictions(dist_id, offense, n_periods)
+st.subheader(f"Run the {model} prediction:")
+if st.button("Run prediction..", use_container_width=True):
+    if not offense or not model or not date_range or not district:
+        st.error("Please set all parameters first!")
+    else:
+        dist_id = f"{district[0]}.0"
+        n_periods = (date_range[1] - date_range[0]).days
+        
+        # Add spinner while running predictions
+        with st.spinner(f"Running {model} predictions..."):
+            if model == "ARIMA":
+                predictions = arima_predictions(dist_id, offense, n_periods)
+            else:
+                predictions = lstm_predictions(dist_id, offense, n_periods)
+
+            # Display the predictions once the spinner finishes
             display_predictions(dist_id, offense, date_range, n_periods, predictions)
-        else:
-            n_periods = (date_range[1] - date_range[0]).days
-            predictions = lstm_predictions(dist_id, offense, n_periods)
-            display_predictions(dist_id, offense, date_range, n_periods, predictions)
-else:
-    st.info("Please set all parameters first!")
