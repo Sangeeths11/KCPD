@@ -10,6 +10,44 @@ import datetime
 from shapely.geometry import Point
 import pickle
 import matplotlib.pyplot as plt
+from tensorflow.keras.models import load_model
+from tensorflow.keras.losses import Loss
+import tensorflow.keras.backend as K
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+
+
+class WeightedHuberLoss(Loss):
+    """Custom Huber Loss to penalize peaks more."""
+    def __init__(self, delta=1.0, peak_weight=5.0, **kwargs):
+        super(WeightedHuberLoss, self).__init__(**kwargs)
+        self.delta = delta
+        self.peak_weight = peak_weight
+
+    def call(self, y_true, y_pred):
+        error = y_true - y_pred
+        abs_error = K.abs(error)
+        quadratic = K.minimum(abs_error, self.delta)
+        linear = abs_error - quadratic
+        loss = 0.5 * quadratic**2 + self.delta * linear
+
+        # Apply higher weight for peaks
+        peak_mask = K.cast(K.greater(y_true, K.mean(y_true) + 2 * K.std(y_true)), K.floatx())
+        loss = loss + peak_mask * self.peak_weight * loss
+
+        return K.mean(loss)
+
+    def get_config(self):
+        config = super(WeightedHuberLoss, self).get_config()
+        config.update({
+            "delta": self.delta,
+            "peak_weight": self.peak_weight
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 st.set_page_config(page_title="KCPD", page_icon="🌍", layout="wide")
@@ -42,6 +80,7 @@ def load_crime_data(dist_id, offense, subset="test"):
 
 def arima_predictions(dist_id, offense, n_periods):
     model_store_path = f"../dataAnalysis/Arima_models/{dist_id}/{offense}"
+    
     if os.path.exists(model_store_path):
         with open(os.path.join(model_store_path, 'arima.pkl'), 'rb') as pkl:
             pickle_preds = pickle.load(pkl).predict(n_periods=n_periods)
@@ -49,13 +88,62 @@ def arima_predictions(dist_id, offense, n_periods):
             pickle_preds = pickle_preds.round()
         return pickle_preds
 
+def lstm_predictions(dist_id, offense, n_periods, scaler=None, last_sequence=None):
+    model_store_path = f"../dataAnalysis/LSTM_models/{dist_id}/{offense}"
+    
+    if os.path.exists(model_store_path):
+        model_store_path = os.path.join(model_store_path, 'saved_model.keras')
+        # Load the saved model
+        model = load_model(
+            model_store_path,
+            custom_objects={'WeightedHuberLoss': WeightedHuberLoss}
+        )
+
+        # Ensure last_sequence is provided
+        if last_sequence is None:
+            raise ValueError("last_sequence must be provided for generating predictions.")
+        if scaler is None:
+            raise ValueError("Scaler must be provided for inverse transformation.")
+
+        # Prepare to store predictions
+        predictions = []
+
+        # Predict step by step for n_periods
+        current_sequence = np.copy(last_sequence)  # Copy the last sequence to avoid mutation
+        for _ in range(n_periods):
+            # Reshape input to match model's expected shape (1, time_steps, 1)
+            current_input = current_sequence.reshape(1, current_sequence.shape[0], 1)
+            
+            # Predict the next value
+            next_value = model.predict(current_input, verbose=0)
+            predictions.append(next_value[0, 0])
+            
+            # Update the sequence: remove the first value, append the new one
+            current_sequence = np.append(current_sequence[1:], next_value, axis=0)
+
+        # Inverse-transform predictions to the original scale
+        predictions = np.array(predictions).reshape(-1, 1)
+        predictions_original_scale = scaler.inverse_transform(predictions)
+        predictions_original_scale = np.maximum(predictions_original_scale, 0)
+
+        # Create a DataFrame for the predictions
+        forecast_dates = pd.date_range(start=pd.Timestamp.now(), periods=n_periods, freq='D')  # Example date range
+        forecast_df = pd.DataFrame({
+            'ds': forecast_dates,
+            'yhat': predictions_original_scale.flatten()
+        })
+
+        predictions = forecast_df["yhat"].to_list()
+
+        if ROUND_PREDICTIONS:
+            predictions = predictions.round()
+
+        return predictions
+
 # Function to create and display the plot
-def display_predictions(dist_id, offense, date_range, n_periods):
-    st.subheader("Prediction Results:")
+def display_predictions(dist_id, offense, date_range, n_periods, predictions):
+    st.subheader(f"Prediction Results for {n_periods} next days:")
     try:
-        # Get predictions
-        predictions = arima_predictions(dist_id, offense, n_periods)
-        
         # Generate a date range for the predictions
         start_date = date_range[0]
         prediction_dates = pd.date_range(start=start_date, periods=n_periods, freq='d')
@@ -169,13 +257,19 @@ with subcol2:
     dec_31_24 = datetime.date(2024, 12, 31)
     dec_31_25 = datetime.date(2025, 12, 31)
 
-    date_range = st.date_input(
-        "Select the time period",
-        (jan_1_24, dec_31_24),
-        jan_1_24,
-        dec_31_25,
+    # Display the fixed start date
+    st.write(f"Prediction start date: {jan_1_24.strftime('%d.%m.%Y')} (fixed)")
+
+    # Let the user select the end date only
+    end_date = st.date_input(
+        "Select the end date:",
+        value=dec_31_24,  # Default end date
+        min_value=jan_1_24,  # Ensure the end date cannot be earlier than the start date
+        max_value=dec_31_25,  # Maximum allowed end date
         format="DD.MM.YYYY",
     )
+
+    date_range = (jan_1_24, end_date)
 
     st.markdown("---")
     district = st.session_state['selected_district']
@@ -199,8 +293,20 @@ with predcol2:
         if st.button("Run prediction..", use_container_width=True):
             if model == "ARIMA":
                 n_periods = (date_range[1] - date_range[0]).days
-                display_predictions(dist_id, offense, date_range, n_periods)
+                predictions = arima_predictions(dist_id, offense, n_periods)
+                display_predictions(dist_id, offense, date_range, n_periods, predictions)
             else:
-                st.warning("LSTM model is not implemented yet!")
+                # Load the training data
+                train_df = load_crime_data(dist_id=dist_id, offense=offense, subset="train")
+                # Fit the scaler on the training data
+                data_series = train_df['Crime_Count'].values
+                data_series = np.maximum(data_series, 0)
+                scaler = MinMaxScaler(feature_range=(0, 1))
+                scaled_data = scaler.fit_transform(data_series.reshape(-1, 1))
+                # Prepare the last sequence for predictions
+                last_sequence = scaled_data[-12:]
+                n_periods = (date_range[1] - date_range[0]).days
+                predictions = lstm_predictions(dist_id, offense, n_periods, scaler=scaler, last_sequence=last_sequence)
+                display_predictions(dist_id, offense, date_range, n_periods, predictions)
     else:
         st.info("Please set all parameters first!")
