@@ -88,7 +88,22 @@ def arima_predictions(dist_id, offense, n_periods):
             pickle_preds = pickle_preds.round()
         return pickle_preds
 
-def lstm_predictions(dist_id, offense, n_periods, scaler=None, last_sequence=None):
+def create_sequences(data, time_steps=1):
+    X, y = [], []
+    for i in range(len(data) - time_steps):
+        X.append(data[i:(i + time_steps)])
+        y.append(data[i + time_steps])
+    return np.array(X), np.array(y)
+
+def preprocess_data(data, time_steps=1):
+    """Preprocessing for LSTM"""
+    data = np.maximum(data, 0)
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(data.reshape(-1, 1))
+    X, y = create_sequences(scaled_data, time_steps)
+    return X, y, scaler
+
+def lstm_predictions(dist_id, offense, n_periods):
     model_store_path = f"../dataAnalysis/LSTM_models/{dist_id}/{offense}"
     
     if os.path.exists(model_store_path):
@@ -99,42 +114,31 @@ def lstm_predictions(dist_id, offense, n_periods, scaler=None, last_sequence=Non
             custom_objects={'WeightedHuberLoss': WeightedHuberLoss}
         )
 
-        # Ensure last_sequence is provided
-        if last_sequence is None:
-            raise ValueError("last_sequence must be provided for generating predictions.")
-        if scaler is None:
-            raise ValueError("Scaler must be provided for inverse transformation.")
-
         # Prepare to store predictions
         predictions = []
 
-        # Predict step by step for n_periods
-        current_sequence = np.copy(last_sequence)  # Copy the last sequence to avoid mutation
-        for _ in range(n_periods):
-            # Reshape input to match model's expected shape (1, time_steps, 1)
-            current_input = current_sequence.reshape(1, current_sequence.shape[0], 1)
-            
-            # Predict the next value
-            next_value = model.predict(current_input, verbose=0)
-            predictions.append(next_value[0, 0])
-            
-            # Update the sequence: remove the first value, append the new one
-            current_sequence = np.append(current_sequence[1:], next_value, axis=0)
+        time_steps=12
 
-        # Inverse-transform predictions to the original scale
-        predictions = np.array(predictions).reshape(-1, 1)
-        predictions_original_scale = scaler.inverse_transform(predictions)
-        predictions_original_scale = np.maximum(predictions_original_scale, 0)
-
-        # Create a DataFrame for the predictions
-        forecast_dates = pd.date_range(start=pd.Timestamp.now(), periods=n_periods, freq='D')  # Example date range
-        forecast_df = pd.DataFrame({
-            'ds': forecast_dates,
-            'yhat': predictions_original_scale.flatten()
-        })
-
-        predictions = forecast_df["yhat"].to_list()
-
+        # Preprocessing
+        train_df = load_crime_data(dist_id=dist_id, offense=offense, subset="train")
+        test_df = load_crime_data(dist_id=dist_id, offense=offense, subset="test")
+        train_df['Reported_Date'] = pd.to_datetime(train_df['Reported_Date'])
+        test_df['Reported_Date'] = pd.to_datetime(test_df['Reported_Date'])
+        test_df = test_df[:n_periods]
+        full_df = pd.concat([train_df, test_df], ignore_index=True).sort_values('Reported_Date').reset_index(drop=True)
+        data_series = full_df['Crime_Count'].values
+        X_train, y_train, scaler = preprocess_data(data_series[:len(train_df)], time_steps)
+        X_test, y_test, _ = preprocess_data(data_series[len(train_df) - time_steps:], time_steps)
+        X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
+        y_pred = model.predict(X_test)
+        y_pred_inv = scaler.inverse_transform(y_pred)
+        y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1))
+        y_pred_inv = np.maximum(y_pred_inv, 0)
+        min_length = min(len(y_test_inv), len(y_pred_inv))
+        y_pred_trimmed = y_pred_inv[:min_length]
+        min_length = min(len(test_df['Reported_Date'].iloc[time_steps:]), len(y_pred_trimmed))
+        predictions = y_pred_inv.flatten()[:min_length]
+        
         if ROUND_PREDICTIONS:
             predictions = predictions.round()
 
@@ -143,47 +147,44 @@ def lstm_predictions(dist_id, offense, n_periods, scaler=None, last_sequence=Non
 # Function to create and display the plot
 def display_predictions(dist_id, offense, date_range, n_periods, predictions):
     st.subheader(f"Prediction Results for {n_periods} next days:")
-    try:
-        # Generate a date range for the predictions
-        start_date = date_range[0]
-        prediction_dates = pd.date_range(start=start_date, periods=n_periods, freq='d')
+    
+    # Generate a date range for the predictions
+    start_date = date_range[0]
+    prediction_dates = pd.date_range(start=start_date, periods=n_periods, freq='d')
 
-        # Create a DataFrame for plotting
-        predictions_df = pd.DataFrame({
-            'Reported_Date': prediction_dates,
-            'Crime_Count': predictions
-        })
-        
-        test_df = load_crime_data(dist_id=dist_id, offense=offense, subset="test")
-        test_df['Reported_Date'] = pd.to_datetime(test_df['Reported_Date'])
-        predictions_df['Reported_Date'] = pd.to_datetime(predictions_df['Reported_Date'])
+    # Create a DataFrame for plotting
+    predictions_df = pd.DataFrame({
+        'Reported_Date': prediction_dates,
+        'Crime_Count': predictions
+    })
+    
+    test_df = load_crime_data(dist_id=dist_id, offense=offense, subset="test")
+    test_df['Reported_Date'] = pd.to_datetime(test_df['Reported_Date'])
+    predictions_df['Reported_Date'] = pd.to_datetime(predictions_df['Reported_Date'])
 
-        # Plotting
-        fig, ax = plt.subplots(figsize=(10, 6))
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Plot predictions
-        ax.plot(predictions_df['Reported_Date'], predictions_df['Crime_Count'], label="Predictions", color='blue')
+    # Plot predictions
+    ax.plot(predictions_df['Reported_Date'], predictions_df['Crime_Count'], label="Predictions", color='blue')
 
-        # Plot test data
-        ax.plot(test_df['Reported_Date'], test_df['Crime_Count'], label="Test Data", color='orange')
+    # Plot test data
+    ax.plot(test_df['Reported_Date'], test_df['Crime_Count'], label="Test Data", color='orange')
 
-        # Title and labels
-        ax.set_title(f"ARIMA Predictions vs Test Data for {offense} in District {dist_id}")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Crime Count")
-        
-        # Add legend
-        ax.legend()
+    # Title and labels
+    ax.set_title(f"ARIMA Predictions vs Test Data for {offense} in District {dist_id}")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Crime Count")
+    
+    # Add legend
+    ax.legend()
 
-        # Add grid
-        ax.grid()
+    # Add grid
+    ax.grid()
 
-        # Adjust layout and display the plot
-        plt.tight_layout()
-        st.pyplot(fig)
-
-    except Exception as e:
-        st.error(f"An error occurred while generating predictions: {e}")
+    # Adjust layout and display the plot
+    plt.tight_layout()
+    st.pyplot(fig)
 
 # Load data
 offenses = load_offenses()
@@ -285,28 +286,18 @@ with subcol2:
     model = st.selectbox("Select the prediction model:", ["ARIMA", "LSTM"])
 
 st.markdown("---")
-predcol1, predcol2, predcol3 = st.columns([1,3,1])
-with predcol2:
-    if offense and model and date_range and district:
-        st.subheader("Run the prediction:")
-        dist_id = f"{district[0]}.0"
-        if st.button("Run prediction..", use_container_width=True):
-            if model == "ARIMA":
-                n_periods = (date_range[1] - date_range[0]).days
-                predictions = arima_predictions(dist_id, offense, n_periods)
-                display_predictions(dist_id, offense, date_range, n_periods, predictions)
-            else:
-                # Load the training data
-                train_df = load_crime_data(dist_id=dist_id, offense=offense, subset="train")
-                # Fit the scaler on the training data
-                data_series = train_df['Crime_Count'].values
-                data_series = np.maximum(data_series, 0)
-                scaler = MinMaxScaler(feature_range=(0, 1))
-                scaled_data = scaler.fit_transform(data_series.reshape(-1, 1))
-                # Prepare the last sequence for predictions
-                last_sequence = scaled_data[-12:]
-                n_periods = (date_range[1] - date_range[0]).days
-                predictions = lstm_predictions(dist_id, offense, n_periods, scaler=scaler, last_sequence=last_sequence)
-                display_predictions(dist_id, offense, date_range, n_periods, predictions)
-    else:
-        st.info("Please set all parameters first!")
+
+if offense and model and date_range and district:
+    st.subheader("Run the prediction:")
+    dist_id = f"{district[0]}.0"
+    if st.button("Run prediction..", use_container_width=True):
+        if model == "ARIMA":
+            n_periods = (date_range[1] - date_range[0]).days
+            predictions = arima_predictions(dist_id, offense, n_periods)
+            display_predictions(dist_id, offense, date_range, n_periods, predictions)
+        else:
+            n_periods = (date_range[1] - date_range[0]).days
+            predictions = lstm_predictions(dist_id, offense, n_periods)
+            display_predictions(dist_id, offense, date_range, n_periods, predictions)
+else:
+    st.info("Please set all parameters first!")
