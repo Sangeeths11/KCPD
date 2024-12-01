@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.7.17 Chrome/128.0.6613.36 Electron/32.0.1 Safari/537.36" version="24.7.17">
   <diagram name="Seite-1" id="cSfYI1GoHmJ6V3lyYYFL">
-    <mxGraphModel dx="2231" dy="1310" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1838" dy="1079" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -84,7 +84,7 @@
         <mxCell id="qdHx80kfDaA7QrMq9e4Q-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="X1g4O19fhCb1Q7l8VJaH-28" target="qdHx80kfDaA7QrMq9e4Q-1" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="X1g4O19fhCb1Q7l8VJaH-28" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;ARIMA&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
+        <mxCell id="X1g4O19fhCb1Q7l8VJaH-28" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;STATISTICAL MODELS (StatsForecast)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
           <mxGeometry x="390" y="1400" width="412" height="60" as="geometry" />
         </mxCell>
         <mxCell id="qdHx80kfDaA7QrMq9e4Q-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="X1g4O19fhCb1Q7l8VJaH-29" target="qdHx80kfDaA7QrMq9e4Q-1" edge="1">
@@ -108,7 +108,7 @@
         <mxCell id="qdHx80kfDaA7QrMq9e4Q-3" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;Evaluation and Plotting&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
           <mxGeometry x="621" y="1660" width="412" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="-6ezIHfBVxtgm-P5qeHE-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="qdHx80kfDaA7QrMq9e4Q-4" target="-6ezIHfBVxtgm-P5qeHE-2">
+        <mxCell id="-6ezIHfBVxtgm-P5qeHE-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="qdHx80kfDaA7QrMq9e4Q-4" target="-6ezIHfBVxtgm-P5qeHE-2" edge="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="827.5714285714289" y="1920" as="targetPoint" />
           </mxGeometry>
@@ -116,7 +116,7 @@
         <mxCell id="qdHx80kfDaA7QrMq9e4Q-4" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;Saving Models&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
           <mxGeometry x="621" y="1790" width="412" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="-6ezIHfBVxtgm-P5qeHE-2" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;Dashboard App for Model Predictions&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+        <mxCell id="-6ezIHfBVxtgm-P5qeHE-2" value="&lt;span style=&quot;font-size: 15px;&quot;&gt;Dashboard App for Model Predictions&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
           <mxGeometry x="621" y="1930" width="412" height="60" as="geometry" />
         </mxCell>
       </root>
