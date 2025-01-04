@@ -10,27 +10,23 @@
 
 ```
 KCPD/
-├── cleanedData/
 ├── dashboard/
 ├── data/
 ├── dataAnalysis/
 ├── dataPreparation/
 ├── img/
-├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
 
-- `data/`: Contains the raw data.
-- `dataAnalysis/`: Jupyter Notebooks for data analysis and modeling.
-- `dashboard/`: Python dashboard to visualize results.
-- `requirements.txt`:  List of required Python packages.
+- `dashboard/`: Python dashboard to visualize results and use models in an app.
+- `data/`: Contains the raw and processed data.
+- `dataAnalysis/`: Jupyter Notebooks for data analysis, data preparation and modeling.
+- - `img/`: Project images.
 - `.gitignore`: Files and directories to be ignored by Git.
 - `README.md`: Project description and instructions.
 
 ## Installation
-
-### Steps
 
 1. Clone the repository:
 
@@ -39,11 +35,9 @@ KCPD/
    cd KCPD
    ```
 
-## Usage
+2. Run dashboard:
 
-1. Place your raw data in the `data/` directory.
-2. Create and edit Jupyter Notebooks in the `dataAnalysis/` directory.
-3. Run dashboard from the the `dashboard/` directory.
+   - Instructions to run the app are available [here](https://github.com/Sangeeths11/KCPD/tree/main/dashboard#readme).
 
 ## Autors
 
