@@ -39,6 +39,14 @@ KCPD/
 
    - Instructions to run the app are available [here](https://github.com/Sangeeths11/KCPD/tree/main/dashboard#readme).
 
+## Solution
+
+The final models used for the dashboard app are trained and described in following notebooks:
+
+- [Statistical models](dataAnalysis/statsforecast_Prediction_top_x.ipynb)
+- [LSTM model](dataAnalysis/LSTM)
+
+
 ## Autors
 
 Sangeeths Chandrakumar, Leandro Gregorini and Florian Klessascheck
